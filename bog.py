@@ -3,14 +3,17 @@ import requests
 from bs4 import BeautifulSoup
 import os
 from urllib.parse import urljoin, urlparse
-import urllib.parse
+
+def is_valid_url(url, base_domain):
+    parsed = urlparse(url)
+    return bool(parsed.netloc) and parsed.netloc.endswith(base_domain)
 
 def download_file(url, folder):
     try:
         response = requests.get(url)
         if response.status_code == 200:
             filename = os.path.basename(urlparse(url).path)
-            if not filename:
+            if not filename or '.' not in filename:
                 filename = "index.html"
             file_path = os.path.join(folder, filename)
 
@@ -23,6 +26,7 @@ def download_file(url, folder):
     except Exception as e:
         print(f"Error downloading {url}: {e}")
     return None
+
 def crawl_page(url, base_domain, folder, visited):
     if url in visited:
         return
@@ -34,32 +38,13 @@ def crawl_page(url, base_domain, folder, visited):
     if not page_content:
         return
 
-    soup = BeautifulSoup(open(page_content), 'html.parser')
+    # Parse with correct encoding
+    soup = BeautifulSoup(open(page_content, encoding='utf-8'), 'html.parser')
     for link in soup.find_all('a', href=True):
         href = link['href']
-        if not is_valid_url(href, base_domain):
-            href = urljoin(url, href)
-        if is_valid_url(href, base_domain):
-            crawl_page(href, base_domain, folder, visited)
-
-def crawl_page2(url, base_domain, folder, visited):
-    if url in visited:
-        return
-
-    print(f"Crawling: {url}")
-    visited.add(url)
-    page_content = download_file(url, folder)
-
-    if not page_content:
-        return
-
-    soup = BeautifulSoup(open(page_content), 'html.parser')
-    for link in soup.find_all('a', href=True):
-        href = link['href']
-        if not is_valid_url(href, base_domain):
-            href = urljoin(url, href)
-        if is_valid_url(href, base_domain):
-            crawl_page(href, base_domain, folder, visited)
+        joined_url = urljoin(url, href)
+        if is_valid_url(joined_url, base_domain) and joined_url not in visited:
+            crawl_page(joined_url, base_domain, folder, visited)
 
 def download_site(url, user_agent, folder, year, month, day, hour):
     # Initialize the Availability API and find the snapshot near the specified date
@@ -73,30 +58,8 @@ def download_site(url, user_agent, folder, year, month, day, hour):
         # Make directories for downloaded files
         os.makedirs(folder, exist_ok=True)
 
-        # Download the main page
-        response = requests.get(archive_url)
-        if response.status_code == 200:
-            main_page_content = response.text
-            main_page_path = os.path.join(folder, "index.html")
-            with open(main_page_path, 'w', encoding='utf-8') as file:
-                file.write(main_page_content)
-            print(f"Main page saved to {main_page_path}")
-
-            # Parse the main page for resources
-            soup = BeautifulSoup(main_page_content, 'html.parser')
-            for tag in soup.find_all(['img', 'script', 'link'], src=True):
-                resource_url = tag['src']
-                if not resource_url.startswith('http'):
-                    resource_url = urllib.parse.urljoin(archive_url, resource_url)
-                download_file(resource_url, folder)
-
-            for link_tag in soup.find_all('link', href=True):
-                resource_url = link_tag['href']
-                if not resource_url.startswith('http'):
-                    resource_url = urllib.parse.urljoin(archive_url, resource_url)
-                download_file(resource_url, folder)
-        else:
-            print(f"Failed to download main page: {archive_url}")
+        visited_urls = set()
+        crawl_page(archive_url, "web.archive.org", folder, visited_urls)
     else:
         print("No archived snapshot found near the specified date for this URL.")
 
