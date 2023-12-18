@@ -42,12 +42,16 @@ def download_file(url, base_folder):
             os.makedirs(subfolder_path, exist_ok=True)
             file_path = os.path.join(subfolder_path, filename)
 
-            with open(file_path, 'wb') as file:
-                file.write(response.content)
+            # Detect encoding
+            encoding = response.apparent_encoding if response.apparent_encoding else 'utf-8'
+
+            with open(file_path, 'w', encoding=encoding) as file:
+                file.write(response.text)
             return file_path
     except Exception as e:
         print(f"Error downloading {url}: {e}")
     return None
+
 
 def crawl_page(url, base_domain, folder, visited):
     if url in visited:
