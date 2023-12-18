@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlparse
 
 def is_valid_url(url, base_domain):
     parsed = urlparse(url)
-    return bool(parsed.netloc) and parsed.netloc.endswith(base_domain)
+    return bool(parsed.netloc) and (parsed.netloc.endswith(base_domain) or parsed.netloc == "web.archive.org")
 
 def download_file(url, folder):
     try:
@@ -53,15 +53,18 @@ def crawl_page(url, base_domain, folder, visited, encoding='utf-8'):
     if not page_content:
         return
 
-    # Use the encoding returned from download_file
     encoding = page_encoding if page_encoding else encoding
     try:
         with open(page_content, 'r', encoding=encoding) as file:
             soup = BeautifulSoup(file, 'html.parser')
-            # ... existing code to process links ...
+
+            for link in soup.find_all('a', href=True):
+                href = link['href']
+                joined_url = urljoin(url, href)
+                if is_valid_url(joined_url, base_domain) and joined_url not in visited:
+                    crawl_page(joined_url, base_domain, folder, visited, encoding)
     except UnicodeDecodeError as e:
         print(f"Error reading {page_content} with encoding {encoding}: {e}")
-
 
 def download_site(url, user_agent, folder, year, month, day, hour):
     # Initialize the Availability API and find the snapshot near the specified date
