@@ -17,15 +17,30 @@ def download_file(url, folder):
                 filename = "index.html"
             file_path = os.path.join(folder, filename)
 
-            # Detect encoding
+            # First, try to decode using the response encoding
             encoding = response.encoding if response.encoding else 'utf-8'
+            try:
+                content = response.content.decode(encoding)
+            except UnicodeDecodeError:
+                # If decoding fails, parse the HTML to find the charset
+                soup = BeautifulSoup(response.content, 'html.parser')
+                meta = soup.find('meta', attrs={'charset': True})
+                if meta:
+                    encoding = meta['charset']
+                else:
+                    meta = soup.find('meta', attrs={'http-equiv': True})
+                    if meta and 'content' in meta.attrs:
+                        content_type = meta['content']
+                        encoding = content_type.split('charset=')[-1]
+                content = response.content.decode(encoding, 'ignore')
 
             with open(file_path, 'w', encoding=encoding) as file:
-                file.write(response.text)  # Use response.text to correctly handle encoding
+                file.write(content)
             return file_path
     except Exception as e:
         print(f"Error downloading {url}: {e}")
     return None
+
 
 def crawl_page(url, base_domain, folder, visited):
     if url in visited:
