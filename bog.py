@@ -34,32 +34,34 @@ def download_file(url, folder):
                         encoding = content_type.split('charset=')[-1]
                 content = response.content.decode(encoding, 'ignore')
 
-            with open(file_path, 'w', encoding=encoding) as file:
-                file.write(content)
-            return file_path
+        with open(file_path, 'w', encoding=encoding) as file:
+            file.write(content)
+        return file_path, encoding
     except Exception as e:
         print(f"Error downloading {url}: {e}")
-    return None
+    return None, None
 
 
-def crawl_page(url, base_domain, folder, visited):
+def crawl_page(url, base_domain, folder, visited, encoding='utf-8'):
     if url in visited:
         return
 
     print(f"Crawling: {url}")
     visited.add(url)
-    page_content = download_file(url, folder)
+    page_content, page_encoding = download_file(url, folder)
 
     if not page_content:
         return
 
-    # Parse with correct encoding
-    soup = BeautifulSoup(open(page_content, encoding='utf-8'), 'html.parser')
-    for link in soup.find_all('a', href=True):
-        href = link['href']
-        joined_url = urljoin(url, href)
-        if is_valid_url(joined_url, base_domain) and joined_url not in visited:
-            crawl_page(joined_url, base_domain, folder, visited)
+    # Use the encoding returned from download_file
+    encoding = page_encoding if page_encoding else encoding
+    try:
+        with open(page_content, 'r', encoding=encoding) as file:
+            soup = BeautifulSoup(file, 'html.parser')
+            # ... existing code to process links ...
+    except UnicodeDecodeError as e:
+        print(f"Error reading {page_content} with encoding {encoding}: {e}")
+
 
 def download_site(url, user_agent, folder, year, month, day, hour):
     # Initialize the Availability API and find the snapshot near the specified date
