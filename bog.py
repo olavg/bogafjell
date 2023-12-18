@@ -5,17 +5,22 @@ import os
 from urllib.parse import urljoin, urlparse
 
 def is_valid_url(url, base_domain):
-    parsed = urlparse(url)
-    return bool(parsed.netloc) and (parsed.netloc.endswith(base_domain) or parsed.netloc == "web.archive.org")
+    # Extract the original URL from the archived URL
+    original_url = url.split('/http:/')[-1].split('/https:/')[-1]
+    parsed = urlparse('http://' + original_url)  # Prepend with http:// for proper parsing
+    return parsed.netloc.endswith(base_domain)
 
-def download_file(url, folder):
+def download_file(url, base_folder):
     try:
         response = requests.get(url)
         if response.status_code == 200:
-            filename = os.path.basename(urlparse(url).path)
-            if not filename or '.' not in filename:
-                filename = "index.html"
-            file_path = os.path.join(folder, filename)
+            path = urlparse(url).path
+            path_parts = path.split('/')
+            filename = path_parts.pop() if path_parts[-1] else 'index.html'
+            subfolder_path = os.path.join(base_folder, *path_parts)
+
+            os.makedirs(subfolder_path, exist_ok=True)
+            file_path = os.path.join(subfolder_path, filename)
 
             # First, try to decode using the response encoding
             encoding = response.encoding if response.encoding else 'utf-8'
@@ -34,13 +39,12 @@ def download_file(url, folder):
                         encoding = content_type.split('charset=')[-1]
                 content = response.content.decode(encoding, 'ignore')
 
-        with open(file_path, 'w', encoding=encoding) as file:
-            file.write(content)
-        return file_path, encoding
+            with open(file_path, 'w', encoding=encoding) as file:
+                file.write(content)
+            return file_path, encoding
     except Exception as e:
         print(f"Error downloading {url}: {e}")
     return None, None
-
 
 def crawl_page(url, base_domain, folder, visited, encoding='utf-8'):
     if url in visited:
@@ -62,12 +66,12 @@ def crawl_page(url, base_domain, folder, visited, encoding='utf-8'):
                 href = link['href']
                 joined_url = urljoin(url, href)
                 if is_valid_url(joined_url, base_domain) and joined_url not in visited:
-                    crawl_page(joined_url, base_domain, folder, visited, encoding)
+                    crawl_page(joined_url, base_domain, folder, visited)
     except UnicodeDecodeError as e:
         print(f"Error reading {page_content} with encoding {encoding}: {e}")
 
+
 def download_site(url, user_agent, folder, year, month, day, hour):
-    # Initialize the Availability API and find the snapshot near the specified date
     availability_api = WaybackMachineAvailabilityAPI(url, user_agent)
     nearest_snapshot = availability_api.near(year=year, month=month, day=day, hour=hour)
 
@@ -75,15 +79,13 @@ def download_site(url, user_agent, folder, year, month, day, hour):
         archive_url = nearest_snapshot.archive_url
         print("Nearest Archived URL:", archive_url)
 
-        # Make directories for downloaded files
         os.makedirs(folder, exist_ok=True)
 
         visited_urls = set()
-        crawl_page(archive_url, "web.archive.org", folder, visited_urls)
+        crawl_page(archive_url, "bogafjell.net", folder, visited_urls)
     else:
         print("No archived snapshot found near the specified date for this URL.")
 
-# Use the function to download the site
 url = "http://bogafjell.net"
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
 download_folder = "bogafjell_net_archive"
