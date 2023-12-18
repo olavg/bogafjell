@@ -5,8 +5,8 @@ import os
 from urllib.parse import urljoin, urlparse
 import re
 
-def is_valid_url(url, base_domain):
-    return base_domain in url
+def is_valid_url(url, base_domain, snapshot_timestamp):
+    return base_domain in url and snapshot_timestamp in url
 
 def adjust_links(soup, base_domain):
     for a_tag in soup.find_all('a', href=True):
@@ -42,18 +42,16 @@ def download_file(url, base_folder):
             os.makedirs(subfolder_path, exist_ok=True)
             file_path = os.path.join(subfolder_path, filename)
 
-            # Detect encoding
             encoding = response.apparent_encoding if response.apparent_encoding else 'utf-8'
-
+            content = response.content.decode(encoding, 'ignore')
             with open(file_path, 'w', encoding=encoding) as file:
-                file.write(response.text)
+                file.write(content)
             return file_path
     except Exception as e:
         print(f"Error downloading {url}: {e}")
     return None
 
-
-def crawl_page(url, base_domain, folder, visited):
+def crawl_page(url, base_domain, folder, visited, snapshot_timestamp):
     if url in visited:
         return
 
@@ -73,16 +71,17 @@ def crawl_page(url, base_domain, folder, visited):
             for a_tag in soup.find_all('a', href=True):
                 href = a_tag['href']
                 joined_url = urljoin(url, href)
-                if is_valid_url(joined_url, base_domain) and joined_url not in visited:
-                    crawl_page(joined_url, base_domain, folder, visited)
+                if is_valid_url(joined_url, base_domain, snapshot_timestamp) and joined_url not in visited:
+                    crawl_page(joined_url, base_domain, folder, visited, snapshot_timestamp)
     except Exception as e:
         print(f"Error processing {page_content}: {e}")
 
 def download_site(archive_url, folder):
     visited_urls = set()
-    crawl_page(archive_url, "bogafjell.net", folder, visited_urls)
+    snapshot_timestamp = archive_url.split('/')[4]  # Extract timestamp from the archive URL
+    crawl_page(archive_url, "bogafjell.net", folder, visited_urls, snapshot_timestamp)
 
 archive_url = "https://web.archive.org/web/20040128221425/http://www.bogafjell.net/"
-download_folder = "docs"
+download_folder = "bogafjell_net_archive"
 
 download_site(archive_url, download_folder)
