@@ -5,10 +5,8 @@ import os
 from urllib.parse import urljoin, urlparse
 
 def is_valid_url(url, base_domain):
-    # Extract the original URL from the archived URL
-    original_url = url.split('/http:/')[-1].split('/https:/')[-1]
-    parsed = urlparse('http://' + original_url)  # Prepend with http:// for proper parsing
-    return parsed.netloc.endswith(base_domain)
+    return base_domain in url
+
 
 def download_file(url, base_folder):
     try:
